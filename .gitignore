@@ -1,0 +1,38 @@
+# ── Rust ──────────────────────────────────────────────────────────────────────
+target/
+**/*.rs.bk
+Cargo.lock          # library crates — omit from version control
+
+# ── Go ────────────────────────────────────────────────────────────────────────
+wraith-go/vendor/
+wraith-go/bin/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+wraith-control/.venv/
+wraith-control/venv/
+wraith-control/*.egg-info/
+wraith-control/dist/
+wraith-control/build/
+.eggs/
+
+# ── Wraith runtime artifacts ───────────────────────────────────────────────────
+*.pb               # process snapshot files (can be gigabytes)
+*.bin              # legacy Phase 1 bincode snapshots
+/tmp/wraith_*      # trampoline binaries and temp files
+
+# ── Build / generated ─────────────────────────────────────────────────────────
+proto/gen/         # any generated proto output outside OUT_DIR
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
