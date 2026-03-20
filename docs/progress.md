@@ -8,29 +8,33 @@ Last Updated: **2026-03-21**
 
 | Metric | Status | Notes |
 |--------|--------|-------|
-| **Overall Progress** | 0% (Planning) | All phases in planning / design stage |
-| **v1.0 ETA** | 18–20 weeks | Dependent on team size and parallel work |
+| **Overall Progress** | ~10% (Phase 1 in progress) | Rust foundation underway |
+| **v1.0 ETA** | 18–20 weeks from Phase 1 start | Dependent on team size and parallel work |
 | **Critical Path** | Phases 1→4→5→6 | Design + Capture + Restore must flow sequentially |
 
 ---
 
 ## Phase Status Dashboard
 
-### Phase 1: Rust Foundation ✅ PLANNED
+### Phase 1: Rust Foundation 🔄 IN PROGRESS
 **Duration**: 2 weeks | **Owner**: Rust team
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Project structure | ⚠ PLANNED | See phase1.md |
-| Cargo.toml config | ⚠ PLANNED | ptrace + nix crate ready |
-| ptrace wrapper | ⚠ PLANNED | SafeProcess + error handling |
-| Register capture | ⚠ PLANNED | x86-64 focus |
-| Integration tests | ⚠ PLANNED | Test target binary needed |
-| **Phase Gate** | ⚠ NOT STARTED | Must pass before Phase 2 |
+| Project structure | ✅ DONE | `wraith-rust/` created with all modules |
+| Cargo.toml config | ✅ DONE | nix, libc, serde, bincode, clap, log |
+| ptrace wrapper | ✅ DONE | `ProcessLock` with RAII attach/detach/drop |
+| Register capture | ✅ DONE | x86-64 GP + FPU via PTRACE_GETREGS/GETFPREGS |
+| Register validation | ✅ DONE | RIP range, RSP null, FPU size checks |
+| Snapshot save/load | ✅ DONE | bincode serialization (temporary; Protobuf in Phase 2) |
+| CLI (capture/resume/inspect) | ✅ DONE | clap-based, 3 subcommands |
+| Integration tests | ✅ DONE | Unit tests + ptrace tests (graceful skip on CI) |
+| Protobuf schema | ✅ DONE | `proto/wraith.proto` — shared by all phases |
+| **Phase Gate** | ⚠ PENDING TEST | Must pass on real Linux before Phase 2 |
 
-**Deliverable**: Working `wraith-capturer` binary (capture only)
+**Deliverable**: Working `wraith-capturer` binary (registers only; memory added Phase 2)
 
-**Risk**: ptrace permissions may need real test environment
+**Risk**: ptrace permissions may need real test environment (`ptrace_scope=0` or root)
 
 ---
 
@@ -318,17 +322,28 @@ wraith/
 │   ├── phase7.md           ✓ Created
 │   └── phase8.md           ✓ Created
 │
-├── wraith-rust/            (not yet created)
+├── wraith-rust/            ✓ Phase 1 scaffolded
+│   ├── Cargo.toml          ✓
 │   ├── src/
-│   ├── tests/
-│   └── Cargo.toml
+│   │   ├── lib.rs          ✓ module declarations + platform guards
+│   │   ├── main.rs         ✓ CLI (capture / resume / inspect)
+│   │   ├── capturer.rs     ✓ Capturer + ProcessSnapshot
+│   │   ├── ptrace_ops.rs   ✓ ProcessLock (RAII attach/detach)
+│   │   ├── registers.rs    ✓ Registers struct + from_ptrace + validate
+│   │   ├── error.rs        ✓ anyhow re-exports + helpers
+│   │   └── utils.rs        ✓ pid_exists, process_name, process_arch
+│   └── tests/
+│       └── integration_tests.rs  ✓
 │
-├── wraith-go/              (not yet created)
+├── proto/                  ✓ Created
+│   └── wraith.proto        ✓ Full schema (snapshot + transport messages)
+│
+├── wraith-go/              (Phase 3 — not yet started)
 │   ├── cmd/
 │   ├── pkg/
 │   └── go.mod
 │
-├── wraith-control/         (not yet created)
+├── wraith-control/         (Phase 5 — not yet started)
 │   ├── wraith/
 │   ├── tests/
 │   └── setup.py
