@@ -38,24 +38,28 @@ Last Updated: **2026-03-21**
 
 ---
 
-### Phase 2: Memory Snapshot ✅ PLANNED
+### Phase 2: Memory Snapshot 🔄 IN PROGRESS
 **Duration**: 3 weeks | **Owner**: Rust team (with Protocol team)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Protobuf schema | ⚠ PLANNED | wraith.proto in repo |
-| /proc/pid/maps parser | ⚠ PLANNED | Region enumeration |
-| /proc/pid/mem reader | ⚠ PLANNED | Memory dump with checksums |
-| Snapshot builder | ⚠ PLANNED | Serialize to protobuf |
-| FD enumeration | ⚠ PLANNED | /proc/pid/fd parsing |
-| Integration tests | ⚠ PLANNED | Memory round-trip verify |
-| **Phase Gate** | ⚠ NOT STARTED | Snapshot file validates correctly |
+| Protobuf schema | ✅ DONE | `proto/wraith.proto` — all message types |
+| build.rs / prost-build | ✅ DONE | Compiles proto at build time |
+| /proc/pid/maps parser | ✅ DONE | `memory.rs` — full parser with classify_region |
+| /proc/pid/mem reader | ✅ DONE | `memory.rs` — dump_region + CRC-64 checksum |
+| Skip logic | ✅ DONE | Skips vsyscall, vvar, non-readable regions |
+| Snapshot builder | ✅ DONE | `snapshot.rs` — converts internal → proto types |
+| FD enumeration | ✅ DONE | `fd_enum.rs` — type classify + fdinfo offset/flags |
+| Capturer wired up | ✅ DONE | `capturer.rs` — full Phase 2 capture sequence |
+| Protobuf save/load | ✅ DONE | `Capturer::save/load` via prost |
+| Integration tests | ✅ DONE | Proto roundtrip + live capture + FD enum |
+| **Phase Gate** | ⚠ PENDING TEST | Must validate on real Linux before Phase 3 |
 
-**Deliverable**: `wraith-proto` (Protobuf definitions), extended `wraith-capturer` (with memory)
+**Deliverable**: `wraith-capturer` binary captures full process state (registers + memory + FDs) and serializes to `snapshot.pb`
 
-**Dependency**: Phase 1 complete
+**Dependency**: Phase 1 complete ✓
 
-**Risk**: Memory read permissions on some systems
+**Risk**: Memory read permissions on some systems (handled: fails gracefully, skips region)
 
 ---
 
@@ -322,18 +326,23 @@ wraith/
 │   ├── phase7.md           ✓ Created
 │   └── phase8.md           ✓ Created
 │
-├── wraith-rust/            ✓ Phase 1 scaffolded
-│   ├── Cargo.toml          ✓
+├── wraith-rust/            ✓ Phases 1 + 2 complete
+│   ├── Cargo.toml          ✓ nix, prost, crc, clap, log
+│   ├── build.rs            ✓ prost-build proto compilation
 │   ├── src/
 │   │   ├── lib.rs          ✓ module declarations + platform guards
 │   │   ├── main.rs         ✓ CLI (capture / resume / inspect)
-│   │   ├── capturer.rs     ✓ Capturer + ProcessSnapshot
+│   │   ├── proto.rs        ✓ prost-generated types (wraith.proto)
+│   │   ├── capturer.rs     ✓ full capture: registers + memory + FDs
 │   │   ├── ptrace_ops.rs   ✓ ProcessLock (RAII attach/detach)
 │   │   ├── registers.rs    ✓ Registers struct + from_ptrace + validate
+│   │   ├── memory.rs       ✓ parse_maps + dump_region + CRC-64
+│   │   ├── fd_enum.rs      ✓ FD type classification + fdinfo reader
+│   │   ├── snapshot.rs     ✓ SnapshotBuilder (internal → proto)
 │   │   ├── error.rs        ✓ anyhow re-exports + helpers
 │   │   └── utils.rs        ✓ pid_exists, process_name, process_arch
 │   └── tests/
-│       └── integration_tests.rs  ✓
+│       └── integration_tests.rs  ✓ proto roundtrip + live capture tests
 │
 ├── proto/                  ✓ Created
 │   └── wraith.proto        ✓ Full schema (snapshot + transport messages)
