@@ -17,3 +17,8 @@ pub mod fd_enum;
 pub mod memory;
 pub mod proto;
 pub mod snapshot;
+
+// Phase 4
+pub mod aslr;
+pub mod fd_restore;
+pub mod restorer;
