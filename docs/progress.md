@@ -1,6 +1,6 @@
 # Progress Tracker: Wraith Process Teleportation Engine
 
-Last Updated: **2026-03-21** (Phase 4 complete)
+Last Updated: **2026-03-31** (Phase 5 in progress)
 
 ---
 
@@ -8,54 +8,54 @@ Last Updated: **2026-03-21** (Phase 4 complete)
 
 | Metric | Status | Notes |
 |--------|--------|-------|
-| **Overall Progress** | ~45% (Phase 4 complete) | Capture + Transport + Restore done |
-| **v1.0 ETA** | 18–20 weeks from Phase 1 start | Dependent on team size and parallel work |
+| **Overall Progress** | ~55% (Phase 5 in progress) | Capture + Transport + Restore done; Orchestration underway |
+| **v1.0 ETA** | ~7 weeks remaining | Phases 5 + 6 + 7 on critical path |
 | **Critical Path** | Phases 1→4→5→6 | Design + Capture + Restore must flow sequentially |
 
 ---
 
 ## Phase Status Dashboard
 
-### Phase 1: Rust Foundation 🔄 IN PROGRESS
+### Phase 1: Rust Foundation ✅ COMPLETE (code)
 **Duration**: 2 weeks | **Owner**: Rust team
 
 | Task | Status | Notes |
 |------|--------|-------|
 | Project structure | ✅ DONE | `wraith-rust/` created with all modules |
-| Cargo.toml config | ✅ DONE | nix, libc, serde, bincode, clap, log |
+| Cargo.toml config | ✅ DONE | nix, prost, crc, clap, log (bincode removed — superseded by prost) |
 | ptrace wrapper | ✅ DONE | `ProcessLock` with RAII attach/detach/drop |
 | Register capture | ✅ DONE | x86-64 GP + FPU via PTRACE_GETREGS/GETFPREGS |
 | Register validation | ✅ DONE | RIP range, RSP null, FPU size checks |
-| Snapshot save/load | ✅ DONE | bincode serialization (temporary; Protobuf in Phase 2) |
+| Snapshot save/load | ✅ DONE | Protobuf via prost (replaced bincode in Phase 2) |
 | CLI (capture/resume/inspect) | ✅ DONE | clap-based, 3 subcommands |
-| Integration tests | ✅ DONE | Unit tests + ptrace tests (graceful skip on CI) |
+| Unit tests | ✅ DONE | Registers, utils, maps parser — graceful skip on non-Linux |
 | Protobuf schema | ✅ DONE | `proto/wraith.proto` — shared by all phases |
-| **Phase Gate** | ⚠ PENDING TEST | Must pass on real Linux before Phase 2 |
+| **Phase Gate** | ⚠ PENDING TEST | Compile + run on real Linux x86-64 with `ptrace_scope=0` |
 
-**Deliverable**: Working `wraith-capturer` binary (registers only; memory added Phase 2)
+**Deliverable**: `wraith-capturer` binary
 
-**Risk**: ptrace permissions may need real test environment (`ptrace_scope=0` or root)
+**Risk**: ptrace permissions require `ptrace_scope=0` or root
 
 ---
 
-### Phase 2: Memory Snapshot 🔄 IN PROGRESS
+### Phase 2: Memory Snapshot ✅ COMPLETE (code)
 **Duration**: 3 weeks | **Owner**: Rust team (with Protocol team)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Protobuf schema | ✅ DONE | `proto/wraith.proto` — all message types |
-| build.rs / prost-build | ✅ DONE | Compiles proto at build time |
-| /proc/pid/maps parser | ✅ DONE | `memory.rs` — full parser with classify_region |
-| /proc/pid/mem reader | ✅ DONE | `memory.rs` — dump_region + CRC-64 checksum |
-| Skip logic | ✅ DONE | Skips vsyscall, vvar, non-readable regions |
-| Snapshot builder | ✅ DONE | `snapshot.rs` — converts internal → proto types |
+| Protobuf schema | ✅ DONE | `proto/wraith.proto` — all message types defined |
+| build.rs / prost-build | ✅ DONE | Compiles proto at build time; no manual protoc needed |
+| /proc/pid/maps parser | ✅ DONE | `memory.rs` — full parser with `classify_region` |
+| /proc/pid/mem reader | ✅ DONE | `memory.rs` — `dump_region` + CRC-64/ECMA-182 checksum |
+| Skip logic | ✅ DONE | Skips `[vsyscall]`, `[vvar]`, non-readable regions |
+| Snapshot builder | ✅ DONE | `snapshot.rs` — `SnapshotBuilder` converts internal → proto types |
 | FD enumeration | ✅ DONE | `fd_enum.rs` — type classify + fdinfo offset/flags |
-| Capturer wired up | ✅ DONE | `capturer.rs` — full Phase 2 capture sequence |
-| Protobuf save/load | ✅ DONE | `Capturer::save/load` via prost |
-| Integration tests | ✅ DONE | Proto roundtrip + live capture + FD enum |
-| **Phase Gate** | ⚠ PENDING TEST | Must validate on real Linux before Phase 3 |
+| Capturer wired up | ✅ DONE | `capturer.rs` — full capture sequence: regs + memory + FDs |
+| Protobuf save/load | ✅ DONE | `Capturer::save/load` via prost encode/decode |
+| Integration tests | ✅ DONE | Proto roundtrip + live capture + FD enum tests |
+| **Phase Gate** | ⚠ PENDING TEST | Validate snapshot.pb round-trip on real Linux |
 
-**Deliverable**: `wraith-capturer` binary captures full process state (registers + memory + FDs) and serializes to `snapshot.pb`
+**Deliverable**: `wraith-capturer` captures full process state (registers + memory + FDs) → `snapshot.pb`
 
 **Dependency**: Phase 1 complete ✓
 
@@ -63,20 +63,20 @@ Last Updated: **2026-03-21** (Phase 4 complete)
 
 ---
 
-### Phase 3: Go Transport 🔄 IN PROGRESS
+### Phase 3: Go Transport ✅ COMPLETE (code)
 **Duration**: 3 weeks | **Owner**: Go team
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Project setup | ✅ DONE | go.mod + Makefile |
-| Protocol design | ✅ DONE | TCP framing (8B header + JSON/binary payload) |
-| Delta detection | ✅ DONE | xxHash-64 page hashing, Detector struct |
-| Transmitter (sender) | ✅ DONE | `pkg/transport/client.go` + `cmd/transmitter` |
-| Receiver (listener) | ✅ DONE | `pkg/transport/server.go` + `cmd/receiver` |
-| Per-block checksum verify | ✅ DONE | Receiver verifies xxHash on each block |
-| Retry with backoff | ✅ DONE | Exponential backoff per block |
-| Integration tests | ✅ DONE | Delta, framing, full e2e roundtrip, large snapshot |
-| **Phase Gate** | ⚠ PENDING TEST | Run `go test ./...` + large transfer benchmark |
+| Project setup | ✅ DONE | go.mod, Makefile, module `github.com/wraith/transfer` |
+| Wire protocol | ✅ DONE | TCP framing: `[4B type][4B length][payload]`; control=JSON, data=binary |
+| Delta detection | ✅ DONE | `pkg/delta/delta.go` — xxHash-64 page hashing, `Detector` struct |
+| Transmitter (sender) | ✅ DONE | `pkg/transport/client.go` + `cmd/transmitter/main.go` |
+| Receiver (listener) | ✅ DONE | `pkg/transport/server.go` + `cmd/receiver/main.go` |
+| Per-block checksum verify | ✅ DONE | Receiver verifies xxHash on every `DataBlock` |
+| Retry with backoff | ✅ DONE | Exponential backoff per block, configurable max retries |
+| Integration tests | ✅ DONE | Delta, framing, DataBlock roundtrip, full e2e, large (10 MB) snapshot |
+| **Phase Gate** | ⚠ PENDING TEST | `go test ./...` + real network transfer benchmark |
 
 **Deliverable**: `wraith-transmitter` + `wraith-receiver` Go binaries
 
@@ -86,50 +86,53 @@ Last Updated: **2026-03-21** (Phase 4 complete)
 
 ---
 
-### Phase 4: Rust Restorer ✅ COMPLETE
+### Phase 4: Rust Restorer ✅ COMPLETE (code)
 **Duration**: 3 weeks | **Owner**: Rust team (systems)
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Address space layout validation | ✅ DONE | `aslr.rs` — 47-bit boundary + overlap checks |
-| Virtual address mapping | ✅ DONE | ptrace syscall injection → mmap MAP_FIXED |
-| Memory restoration | ✅ DONE | Write pages via /proc/pid/mem |
-| Permission restoration | ✅ DONE | mprotect injection after data write |
-| Register restoration | ✅ DONE | PTRACE_SETREGS + PTRACE_SETFPREGS |
-| FD restoration | ✅ DONE | `fd_restore.rs` — regular+dir restored, pipes/sockets warned |
-| FD injection (dup2) | ✅ DONE | dup2 syscall injection for opened FDs |
-| Checksum validation | ✅ DONE | CRC-64 verified before each region write |
-| Child stub (fork+traceme) | ✅ DONE | Fork stub: PTRACE_TRACEME + SIGSTOP |
-| Syscall injector | ✅ DONE | `SyscallInjector` — save regs / patch syscall;int3 / restore |
-| CLI binary | ✅ DONE | `src/bin/restorer.rs` — `wraith-restorer` with --strict-fds |
-| Unit tests | ✅ DONE | aslr, fd_restore, restorer validate tests |
-| **Phase Gate** | ⚠ PENDING TEST | Restored process runs without segfault on real Linux |
+| Address space layout validation | ✅ DONE | `aslr.rs` — 47-bit boundary check, overlap detection, `perms_to_prot` |
+| Child stub (fork + traceme) | ✅ DONE | `fork()` → child: `PTRACE_TRACEME` + `raise(SIGSTOP)` |
+| Syscall injector | ✅ DONE | `SyscallInjector` — save regs / patch `syscall;int3` / restore |
+| Virtual address mapping | ✅ DONE | Inject `mmap MAP_FIXED|MAP_PRIVATE|MAP_ANONYMOUS` per region |
+| Memory restoration | ✅ DONE | Write pages via `/proc/pid/mem` (O_RDWR, child must be stopped) |
+| Permission restoration | ✅ DONE | Inject `mprotect` after data write to restore final perms |
+| Register restoration | ✅ DONE | `PTRACE_SETREGS` + `PTRACE_SETFPREGS` from proto register state |
+| FD restoration | ✅ DONE | `fd_restore.rs` — regular + dir reopened; pipes/sockets warned |
+| FD injection (dup2) | ✅ DONE | Inject `dup2` for each successfully opened FD |
+| Checksum validation | ✅ DONE | CRC-64 verified before writing each region |
+| CLI binary | ✅ DONE | `src/bin/restorer.rs` — `wraith-restorer --snapshot <path> [--strict-fds]` |
+| Unit tests | ✅ DONE | `aslr`, `fd_restore`, `restorer` validate/prot tests |
+| **Phase Gate** | ⚠ PENDING TEST | Restored process resumes without segfault on real Linux |
 
-**Deliverable**: `wraith-restorer` binary — restores process from snapshot via ptrace syscall injection
+**Deliverable**: `wraith-restorer` binary
 
 **Dependency**: Phase 2 (snapshot format), Phase 3 (network receive)
 
-**Implementation note**: Uses ptrace syscall injection (not a separate trampoline binary).
-Parent forks a minimal stub child (PTRACE_TRACEME + SIGSTOP), then injects mmap/mprotect/dup2
-syscalls to reconstruct the address space, sets registers via PTRACE_SETREGS, and detaches.
+**Implementation**: ptrace syscall injection — no separate trampoline binary.
+Parent forks stub child (PTRACE_TRACEME + SIGSTOP), injects mmap/mprotect/dup2, sets registers, detaches.
 
 ---
 
-### Phase 5: Python Orchestration ✅ PLANNED
+### Phase 5: Python Orchestration 🔄 IN PROGRESS
 **Duration**: 2 weeks | **Owner**: Python team
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Project structure | ⚠ PLANNED | setup.py, wraith/ module |
-| Preflight checks | ⚠ PLANNED | Architecture, resources, perms |
-| Teleporter class | ⚠ PLANNED | Orchestration state machine |
-| SSH integration | ⚠ PLANNED | paramiko for remote control |
-| Rollback logic | ⚠ PLANNED | Unfreeze on failure |
-| CLI interface | ⚠ PLANNED | click-based commands |
-| Integration tests | ⚠ PLANNED | Full e2e migration |
-| **Phase Gate** | ⚠ NOT STARTED | Single workload migrates end-to-end |
+| Project structure | ✅ DONE | `wraith-control/` — setup.py, requirements.txt, wraith/ package |
+| Config dataclasses | ✅ DONE | `config.py` — DestinationConfig, CaptureConfig, TransferConfig, RestoreConfig |
+| SSH session manager | ✅ DONE | `remote.py` — `RemoteSession` (paramiko), exec + file copy + port-forward |
+| Exception types | ✅ DONE | `exceptions.py` — TeleportError, PreflightError, RollbackError, phased hierarchy |
+| Logging setup | ✅ DONE | `logging.py` — structured JSON + human console handler |
+| Pre-flight checks | ✅ DONE | `checks.py` — process exists, ptrace perms, arch match, dest reachable, resources, binaries |
+| Teleporter state machine | ✅ DONE | `teleporter.py` — `MigrationState` enum, full migrate + rollback |
+| CLI interface | ✅ DONE | `cli.py` — `migrate`, `capture`, `transfer`, `restore`, `check` subcommands |
+| `__init__.py` public API | ✅ DONE | exports `Teleporter`, `DestinationConfig`, `TeleportError` |
+| Unit tests | ✅ DONE | `tests/test_checks.py`, `tests/test_teleporter.py` |
+| Example script | ✅ DONE | `examples/migrate_job.py` |
+| **Phase Gate** | ⚠ PENDING TEST | Single workload migrates end-to-end on 2 machines |
 
-**Deliverable**: `wraith` (Python CLI tool + library)
+**Deliverable**: `wraith` Python CLI tool + `wraith` importable library
 
 **Dependency**: Phases 1–4 all working
 
@@ -137,63 +140,63 @@ syscalls to reconstruct the address space, sets registers via PTRACE_SETREGS, an
 
 ---
 
-### Phase 6: Full Integration Test ✅ PLANNED
+### Phase 6: Full Integration Test ⚠ PLANNED
 **Duration**: 2 weeks | **Owner**: QA / Integration
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Integration test suite | ⚠ PLANNED | pytest-based tests |
-| Simple workload test | ⚠ PLANNED | sleep/compute job |
-| Memory preservation test | ⚠ PLANNED | Byte-for-byte comparison |
-| Network failure test | ⚠ PLANNED | Rollback on disconnect |
-| Stress tests | ⚠ PLANNED | Sequential and parallel |
-| Benchmark suite | ⚠ PLANNED | Performance profiling |
-| **Phase Gate** | ⚠ NOT STARTED | All tests pass, targets met |
+| Test environment setup | ⚠ PLANNED | 2 Linux VMs, `ptrace_scope=0`, Wraith binaries installed |
+| Integration test suite | ⚠ PLANNED | pytest-based, uses real `wraith` CLI |
+| Simple workload test | ⚠ PLANNED | Migrate a `sleep 3600` process |
+| Memory preservation test | ⚠ PLANNED | Byte-for-byte comparison via snapshot inspect |
+| Network failure test | ⚠ PLANNED | Kill connection mid-transfer; verify rollback unfreeze |
+| Stress tests | ⚠ PLANNED | 10 sequential migrations, large processes (1 GB RSS) |
+| Benchmark suite | ⚠ PLANNED | Measure pause time, transfer rate, restore time |
+| **Phase Gate** | ⚠ NOT STARTED | All tests pass; pause < 30 s for typical workload |
 
 **Deliverable**: Test suite + performance report
 
 **Dependency**: All Phases 1–5
 
-**Risk**: Finding reliable test infrastructure
+**Risk**: Finding reliable 2-machine test infrastructure
 
 ---
 
-### Phase 7: Hardening ✅ PLANNED
+### Phase 7: Hardening ⚠ PLANNED
 **Duration**: 3 weeks | **Owner**: Security + DevOps
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Error taxonomy | ⚠ PLANNED | Map all failure modes |
-| Recovery strategies | ⚠ PLANNED | Retry vs abort vs rollback |
-| Structured logging | ⚠ PLANNED | JSON logs for analysis |
-| Metrics export | ⚠ PLANNED | Prometheus-compatible |
-| Security review | ⚠ PLANNED | Auth, encryption, audit |
-| Playbooks | ⚠ PLANNED | Ops runbooks for incidents |
-| Canary testing | ⚠ PLANNED | Gradual rollout plan |
-| **Phase Gate** | ⚠ NOT STARTED | Production-grade safety |
+| Error taxonomy | ⚠ PLANNED | Map all failure modes to error codes |
+| Recovery strategies | ⚠ PLANNED | Retry vs abort vs rollback decision tree |
+| Structured logging | ⚠ PLANNED | JSON logs with trace IDs across all components |
+| Metrics export | ⚠ PLANNED | Prometheus counters: migrations, failures, bytes, latency |
+| Security review | ⚠ PLANNED | Auth model, ptrace scope, snapshot file permissions |
+| Playbooks | ⚠ PLANNED | Ops runbooks: frozen source, failed restore, partial transfer |
+| Canary testing | ⚠ PLANNED | Gradual rollout plan for production |
+| **Phase Gate** | ⚠ NOT STARTED | Security sign-off + runbooks reviewed |
 
-**Deliverable**: Hardened binaries + runbooks
+**Deliverable**: Hardened binaries + runbooks + metrics dashboard
 
 **Dependency**: Phases 1–6
 
-**Risk**: Finding security issues late
+**Risk**: Security issues found late; metrics instrumentation across 3 languages
 
 ---
 
 ### Phase 8: Beyond v1 ⚠ RESEARCH
 **Duration**: Future | **Owner**: Architecture
+**Status**: Do not start until v1.0 ships and validates in production
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Multi-threading (8.1) | ⚠ PLANNED | High value for multi-threaded apps |
-| TCP sockets (8.2) | ⚠ PLANNED | Very high difficulty, essential feature |
-| Device handles (8.3) | ⚠ PLANNED | Kernel-level, very complex |
-| Cross-arch (8.4) | ❌ UNLIKELY | Not worth implementing |
-| Live migration (8.5) | ⚠ PLANNED | Research-grade difficulty |
-| Container support (8.6) | ⚠ PLANNED | Medium difficulty |
-| Observability (8.7) | ⚠ PLANNED | Low difficulty, high value |
-
-**Status**: Do not start until v1.0 ships and validates
+| Sub-phase | Status | Difficulty | Value |
+|-----------|--------|-----------|-------|
+| 8.1 Multi-threading | ⚠ PLANNED | High | Very High |
+| 8.2 TCP socket live migration | ⚠ PLANNED | Very High | Very High |
+| 8.3 Device handles | ⚠ PLANNED | Very High | Medium |
+| 8.4 Cross-arch restore | ❌ UNLIKELY | Extreme | Low |
+| 8.5 Live migration (no freeze) | ⚠ PLANNED | Research | High |
+| 8.6 Container / namespace support | ⚠ PLANNED | Medium | High |
+| 8.7 Observability + tracing | ⚠ PLANNED | Low | High |
 
 ---
 
@@ -202,74 +205,57 @@ syscalls to reconstruct the address space, sets registers via PTRACE_SETREGS, an
 ```
 START
   │
-  ├─ Phase 1: Rust Foundation [2w]
-  │   └─ Phase 2: Memory Snapshot [3w] (parallel start week 2)
-  │       └─ Phase 4: Rust Restorer [3w]
-  │           └─ Phase 5: Python Orchestration [2w]
-  │               └─ Phase 6: Integration [2w]
-  │                   └─ Phase 7: Hardening [3w]
+  ├─ Phase 1: Rust Foundation    [✅ code done]
+  │   └─ Phase 2: Memory Snapshot [✅ code done]
+  │       └─ Phase 4: Rust Restorer [✅ code done]
+  │           └─ Phase 5: Python Orchestration [🔄 IN PROGRESS ~2w]
+  │               └─ Phase 6: Integration Tests [⚠ ~2w]
+  │                   └─ Phase 7: Hardening [⚠ ~3w]
   │                       └─ v1.0 RELEASE
   │
-  └─ Phase 3: Go Transport [3w] (can run mostly parallel)
-      └─ (feeds into Phase 5)
+  └─ Phase 3: Go Transport [✅ code done] (feeds into Phase 5)
 
-Total on critical path: ~15 weeks
-With parallelization: ~18-20 weeks
+Remaining on critical path: ~7 weeks
+All phase gates pending real Linux test environment
 ```
-
-## Parallel Work Opportunities
-
-| Phase | Can Run In Parallel | Start Week |
-|-------|-------------------|-----------|
-| Phase 1 | Independent | Week 1 |
-| Phase 2 | After Phase 1 starts | Week 2 |
-| Phase 3 | After Phase 2 starts | Week 3 |
-| Phase 4 | After Phase 2 done | Week 6 |
-| Protobuf design | Before Phase 2 | Week 1 |
-| Test infra | Any time | Week 1 |
-
-**Team Size Impact**:
-- 3–4 engineers: 18–20 weeks (as planned)
-- 2 engineers: 24–28 weeks
-- 5+ engineers: 12–15 weeks (with coordination overhead)
 
 ---
 
 ## Milestone Tracking
 
-### Milestone 1: Capture Working (Week 2–3)
-- [ ] Phase 1 integration test passes
-- [ ] Can freeze and unfreeze process
-- [ ] Registers captured deterministically
-- **Blocker for**: Phase 2
+### Milestone 1: Capture Working ✅ CODE DONE
+- [x] Phase 1 code complete — ptrace, registers, CLI
+- [x] Phase 2 code complete — maps, mem, FDs, proto
+- [ ] Integration test passes on real Linux (phase gate pending)
+- **Blocker for**: Phase 4
 
-### Milestone 2: Memory Serialization (Week 5–6)
-- [ ] Phase 2 integration test passes
-- [ ] Snapshot file generates correctly
-- [ ] Protobuf validates
-- **Blocker for**: Phase 3 + 4
+### Milestone 2: Transport Working ✅ CODE DONE
+- [x] Phase 3 code complete — TCP framing, delta, transmitter/receiver
+- [ ] Real network transfer test passes (phase gate pending)
+- **Blocker for**: Phase 5
 
-### Milestone 3: Single-Machine Restore (Week 8–9)
-- [ ] Phase 4 restores locally (save snapshot, restore in same machine)
-- [ ] Process resumes without corruption
+### Milestone 3: Single-Machine Restore ✅ CODE DONE
+- [x] Phase 4 code complete — syscall injection, mmap, mprotect, setregs
+- [ ] Restored process runs on real Linux without segfault (phase gate pending)
 - **Blocker for**: End-to-end testing
 
-### Milestone 4: Cross-Machine (Week 10–11)
-- [ ] Phase 3 transmits snapshot reliably
-- [ ] Phase 5 coordinates full migration
-- [ ] First cross-machine migration works
+### Milestone 4: First Cross-Machine Migration
+- [ ] Phase 5 code complete (in progress)
+- [ ] `wraith migrate --pid X --destination host-b` works on 2 real machines
+- [ ] Rollback verified on simulated network failure
 - **Blocker for**: Testing phase
 
-### Milestone 5: Reliability (Week 14–15)
+### Milestone 5: Reliability
 - [ ] Phase 6 tests all pass
-- [ ] Stress tests hold
-- [ ] Performance targets met
+- [ ] Stress tests hold (10 sequential migrations)
+- [ ] Performance targets met (pause < 30 s for 1 GB process)
 - **Blocker for**: Hardening
 
-### Milestone 6: Production (Week 17–18)
+### Milestone 6: Production Ready
 - [ ] Phase 7 hardening complete
-- [ ] Canary testing passes
-- [x] **Ready for v1.0 release**
+- [ ] Security sign-off
+- [ ] Canary test passed
+- **Gate for**: v1.0 release
 
 ---
 
@@ -277,42 +263,45 @@ With parallelization: ~18-20 weeks
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|-----------|
-| ptrace permission issues | Medium | High | Run test on real system early (Week 1) |
-| Network transport unreliable | Low | High | Extensive integration testing (Phase 3–6) |
-| Address space conflicts | Medium | Medium | ASLR workaround + fallback approach |
-| FD/socket restoration hard | High | Medium | Keep v1 scope tight, accept FD loss |
-| Team context switching | High | High | Clearly separate module owners |
-| Test environment unavailable | Medium | Very High | Acquire test VMs in Week 0 |
-| Performance backslash | Low | High | Benchmark early and often |
+| ptrace permission issues on target systems | Medium | High | Require `ptrace_scope=0` or root; document in README |
+| MAP_FIXED refused by kernel (ASLR conflict) | Medium | High | Detect early in `aslr.rs::validate()`; return clear error |
+| Network timeout mid-transfer | Low | High | Retry with backoff (Phase 3); rollback unfreeze (Phase 5) |
+| FD/socket restoration incomplete | High | Medium | v1 scope: accept loss of pipes/sockets; warn operator |
+| Source left frozen on failure | High | Very High | RAII `ProcessLock` + Phase 5 rollback always unfreeze |
+| Test environment unavailable | Medium | Very High | Acquire 2 Linux VMs before Phase 6 starts |
+| SSH key management in production | Medium | Medium | Document key requirements; support agent forwarding |
 
 ---
 
 ## Success Criteria for v1.0
 
-- [x] Single-threaded processes migrate successfully
-- [x] Memory state preserved byte-for-byte
-- [x] No data loss in success path
-- [x] Rollback works in all failure modes
-- [x] <30 second downtime for typical workload
-- [x] Clear error messages for all failure cases
-- [x] CLI tool works end-to-end
-- [x] Documentation complete and tested
-- [x] No known security issues
-- [x] Benchmarks show acceptable performance
+- [ ] Single-threaded processes migrate successfully (pending Phase 6 test)
+- [ ] Memory state preserved byte-for-byte (pending Phase 6 verification)
+- [ ] Source process never left frozen on any failure path (RAII guaranteed in code)
+- [ ] Rollback works: source unfreezes if transfer or restore fails
+- [ ] Pause time < 30 seconds for a 1 GB RSS process
+- [ ] Clear error messages for all known failure cases
+- [ ] `wraith migrate` CLI works end-to-end
+- [ ] Documentation complete (docs/ all written)
+- [ ] No known security issues (pending Phase 7 review)
+- [ ] Benchmarks show acceptable performance (pending Phase 6)
 
 ---
 
 ## Known Issues (Tracking)
 
-### Current (v1 Planning)
-- (none yet; tracking will begin after Phase 1)
+### Active (v1 Scope Limitations — by design)
+- ❌ Multi-threaded processes not supported — `ptrace::attach` freezes one thread (Phase 8.1)
+- ❌ Network sockets not preserved across machines — skip with warning (Phase 8.2)
+- ❌ Device FDs (e.g. `/dev/tty`) not restored — skip with warning (Phase 8.3)
+- ❌ Cross-architecture restore not supported — `compile_error!` guard in lib.rs (Phase 8.4)
+- ⚠ MAP_FIXED may fail if destination kernel refuses exact address — returns error, rolls back
+- ⚠ Anonymous pipe FDs lost on migrate — app must reopen; warning printed
 
-### Expected (v1 Known Limitations)
-- ❌ Multi-threaded processes not supported (Phase 8.1)
-- ❌ Network sockets not preserved (Phase 8.2)
-- ❌ Device fds not supported (Phase 8.3)
-- ❌ Cross-architecture not supported (Phase 8.4)
-- ⚠ >100ms pause time (Phase 8.5 for improvement)
+### To Investigate Before Phase 6
+- [ ] vsyscall / vdso restoration on kernels with `vsyscall=none`
+- [ ] Large processes (>4 GB) — `/proc/pid/mem` seek uses `u64`; should be fine but test
+- [ ] Processes with many threads detected early and rejected cleanly
 
 ---
 
@@ -320,99 +309,84 @@ With parallelization: ~18-20 weeks
 
 ```
 wraith/
-├── docs/                    (YOU ARE HERE)
-│   ├── motto.md            ✓ Created
-│   ├── plan.md             ✓ Created
-│   ├── roadmap.md          ✓ Created
-│   ├── progress.md         ✓ Created (this file)
-│   ├── phase1.md           ✓ Created
-│   ├── phase2.md           ✓ Created
-│   ├── phase3.md           ✓ Created
-│   ├── phase4.md           ✓ Created
-│   ├── phase5.md           ✓ Created
-│   ├── phase6.md           ✓ Created
-│   ├── phase7.md           ✓ Created
-│   └── phase8.md           ✓ Created
+├── docs/                        (YOU ARE HERE)
+│   ├── motto.md                ✓ Written
+│   ├── plan.md                 ✓ Written
+│   ├── roadmap.md              ✓ Written
+│   ├── progress.md             ✓ This file
+│   ├── phase1.md–phase8.md     ✓ All written
 │
-├── wraith-rust/            ✓ Phases 1 + 2 + 4 complete
-│   ├── Cargo.toml          ✓ nix, prost, crc, clap, log + [[bin]] entries
-│   ├── build.rs            ✓ prost-build proto compilation
+├── wraith-rust/                 ✓ Phases 1 + 2 + 4 complete
+│   ├── Cargo.toml              ✓ nix, prost, crc, clap, log; [[bin]] for capturer + restorer
+│   ├── build.rs                ✓ prost-build proto compilation
+│   ├── proto/wraith.proto      ✓ Full schema (snapshot + transport messages)
 │   ├── src/
-│   │   ├── lib.rs          ✓ module declarations + platform guards
-│   │   ├── main.rs         ✓ wraith-capturer CLI (capture / resume / inspect)
-│   │   ├── bin/
-│   │   │   └── restorer.rs ✓ wraith-restorer CLI (restore + --strict-fds)
-│   │   ├── proto.rs        ✓ prost-generated types (wraith.proto)
-│   │   ├── capturer.rs     ✓ full capture: registers + memory + FDs
-│   │   ├── ptrace_ops.rs   ✓ ProcessLock (RAII attach/detach)
-│   │   ├── registers.rs    ✓ Registers struct + from_ptrace + validate
-│   │   ├── memory.rs       ✓ parse_maps + dump_region + CRC-64
-│   │   ├── fd_enum.rs      ✓ FD type classification + fdinfo reader
-│   │   ├── snapshot.rs     ✓ SnapshotBuilder (internal → proto)
-│   │   ├── restorer.rs     ✓ ProcessRestorer + SyscallInjector (Phase 4)
-│   │   ├── aslr.rs         ✓ AddressSpaceLayout validate + perms_to_prot (Phase 4)
-│   │   ├── fd_restore.rs   ✓ FdRestorer — regular/dir restored, pipes warned (Phase 4)
-│   │   ├── error.rs        ✓ anyhow re-exports + helpers
-│   │   └── utils.rs        ✓ pid_exists, process_name, process_arch
-│   └── tests/
-│       └── integration_tests.rs  ✓ proto roundtrip + live capture tests
+│   │   ├── lib.rs              ✓ module declarations + platform guards
+│   │   ├── main.rs             ✓ wraith-capturer CLI (capture / resume / inspect)
+│   │   ├── bin/restorer.rs     ✓ wraith-restorer CLI (--snapshot + --strict-fds)
+│   │   ├── proto.rs            ✓ prost-generated types
+│   │   ├── capturer.rs         ✓ full capture: registers + memory + FDs
+│   │   ├── ptrace_ops.rs       ✓ ProcessLock (RAII attach/detach/drop)
+│   │   ├── registers.rs        ✓ Registers + from_ptrace + validate
+│   │   ├── memory.rs           ✓ parse_maps + dump_region + CRC-64
+│   │   ├── fd_enum.rs          ✓ FD type classification + fdinfo reader
+│   │   ├── snapshot.rs         ✓ SnapshotBuilder (internal → proto)
+│   │   ├── restorer.rs         ✓ ProcessRestorer + SyscallInjector
+│   │   ├── aslr.rs             ✓ AddressSpaceLayout + perms_to_prot
+│   │   ├── fd_restore.rs       ✓ FdRestorer (regular/dir ok; pipes/sockets warned)
+│   │   ├── error.rs            ✓ anyhow re-exports + helpers
+│   │   └── utils.rs            ✓ pid_exists, process_name, process_arch
+│   └── tests/integration_tests.rs  ✓ proto roundtrip + live capture tests
 │
-├── proto/                  ✓ Created
-│   └── wraith.proto        ✓ Full schema (snapshot + transport messages)
+├── wraith-go/                   ✓ Phase 3 complete
+│   ├── go.mod                  ✓ module + xxhash dep
+│   ├── Makefile                ✓ build / test / tidy
+│   ├── pkg/transport/
+│   │   ├── protocol.go         ✓ Frame, DataBlock, Conn, control messages
+│   │   ├── client.go           ✓ Transmitter (send + delta + retry)
+│   │   └── server.go           ✓ Receiver (checksum verify, buffer assembly)
+│   ├── pkg/delta/delta.go      ✓ Detector, HashPage, Analyze
+│   ├── cmd/transmitter/main.go ✓
+│   ├── cmd/receiver/main.go    ✓
+│   └── tests/integration_test.go  ✓ delta + framing + e2e roundtrip
 │
-├── wraith-go/              ✓ Phase 3 complete
-│   ├── go.mod              ✓ github.com/wraith/transfer, xxhash dep
-│   ├── Makefile            ✓ build / test / tidy targets
-│   ├── pkg/
-│   │   ├── transport/
-│   │   │   ├── protocol.go ✓ Frame, DataBlock, Conn, control messages
-│   │   │   ├── client.go   ✓ Transmitter (send + retry)
-│   │   │   └── server.go   ✓ Receiver (checksum verify, block assembly)
-│   │   └── delta/
-│   │       └── delta.go    ✓ Detector, HashPage, Analyze
-│   ├── cmd/
-│   │   ├── transmitter/main.go  ✓
-│   │   └── receiver/main.go     ✓
-│   └── tests/
-│       └── integration_test.go  ✓ delta + framing + e2e roundtrip
-│
-├── wraith-control/         (Phase 5 — not yet started)
+├── wraith-control/              🔄 Phase 5 in progress
+│   ├── setup.py                ✓ package metadata + entry points
+│   ├── requirements.txt        ✓ click, paramiko, pytest
 │   ├── wraith/
+│   │   ├── __init__.py         ✓ public API exports
+│   │   ├── config.py           ✓ DestinationConfig, CaptureConfig, etc.
+│   │   ├── exceptions.py       ✓ TeleportError hierarchy
+│   │   ├── logging.py          ✓ structured JSON + console handler
+│   │   ├── remote.py           ✓ RemoteSession (paramiko SSH)
+│   │   ├── checks.py           ✓ PreflightChecker (6 checks)
+│   │   ├── teleporter.py       ✓ Teleporter state machine + rollback
+│   │   └── cli.py              ✓ migrate / capture / transfer / restore / check
 │   ├── tests/
-│   └── setup.py
+│   │   ├── test_checks.py      ✓ unit tests for PreflightChecker
+│   │   └── test_teleporter.py  ✓ state machine + rollback tests
+│   └── examples/migrate_job.py ✓
 │
-└── README.md               ✓ Created
+└── README.md                    ✓ Written
 ```
 
 ---
 
-## Next Steps (Action Items)
+## Next Steps
 
-### Week 0 (Prep)
-- [ ] Set up test environment (2 machines or VMs)
-- [ ] Acquire SSH key setup
-- [ ] Create GitHub repo structure
-- [ ] Review all phase docs with team
+### Now (Phase 5 — in progress)
+- [x] Python project skeleton created
+- [x] All modules implemented
+- [ ] Run `pip install -e .` and `pytest` locally (Linux)
+- [ ] End-to-end smoke test against mock binaries
 
-### Week 1–2 (Phase 1)
-- [ ] Start Rust capturer project
-- [ ] Implement ptrace wrapper
-- [ ] Write register capture code
-- [ ] Create test binary
+### After Phase 5 Gate
+- [ ] Set up 2 Linux VMs with `ptrace_scope=0`
+- [ ] Install Wraith binaries on both machines
+- [ ] Run Phase 6 integration tests
 
-### Week 2–3 (Phase 2)
-- [ ] Design Protobuf schema
-- [ ] Implement memory parser
-- [ ] Implement FD enumeration
-- [ ] Integration tests
-
-### Week 3 (Phase 3)
-- [ ] Start Go project
-- [ ] Design transport protocol
-- [ ] Implement delta detection
-- [ ] Network tests
-
-### (See roadmap.md for full timeline)
+### After Phase 6 Gate
+- [ ] Phase 7 hardening — structured logging, Prometheus, security review
 
 ---
 
@@ -421,39 +395,13 @@ wraith/
 | What | Where | Owner |
 |------|-------|-------|
 | Big picture | [plan.md](plan.md) | Everyone |
-| Philosophy | [motto.md](motto.md) | leadership |
+| Philosophy | [motto.md](motto.md) | Leadership |
 | Timeline | [roadmap.md](roadmap.md) | PM |
 | This tracker | [progress.md](progress.md) | PM |
-| Capture | [phase1.md](phase1.md) + [phase2.md](phase2.md) | Rust team |
-| Transfer | [phase3.md](phase3.md) | Go team |
-| Restore | [phase4.md](phase4.md) | Rust team |
-| Control | [phase5.md](phase5.md) | Python team |
-| Testing | [phase6.md](phase6.md) | QA |
-| Hardening | [phase7.md](phase7.md) | Security |
-| Future | [phase8.md](phase8.md) | Research |
-
----
-
-## How to Update This File
-
-**Monthly**: Update phase status and risk register
-**Weekly**: Update current phase progress bar
-**As-needed**: Add blockers, escalate risks
-
-Template for entry:
-
-```markdown
-### Milestone N: [Name] (Week X–Y)
-- [ ] Task 1
-- [ ] Task 2
-- **Blocker for**: Phase X
-```
-
----
-
-## Contact & Escalation
-
-- **Technical Questions**: See respective phase doc
-- **Timeline Concerns**: See roadmap.md
-- **Risks**: Update risk register above
-- **Blockers**: Escalate with impact assessment
+| Capture (Phase 1+2) | [phase1.md](phase1.md), [phase2.md](phase2.md) | Rust team |
+| Transport (Phase 3) | [phase3.md](phase3.md) | Go team |
+| Restore (Phase 4) | [phase4.md](phase4.md) | Rust team |
+| Orchestration (Phase 5) | [phase5.md](phase5.md) | Python team |
+| Testing (Phase 6) | [phase6.md](phase6.md) | QA |
+| Hardening (Phase 7) | [phase7.md](phase7.md) | Security |
+| Future (Phase 8) | [phase8.md](phase8.md) | Research |
